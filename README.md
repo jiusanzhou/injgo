@@ -1,6 +1,6 @@
 <div align="center">
 
-# Injgo
+# injgo
 
 **Injgo** is a tool for dynamic library injecting which written in Golang.
 
