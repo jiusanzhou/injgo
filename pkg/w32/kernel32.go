@@ -11,18 +11,25 @@ import (
 var (
 	modkernel32 = syscall.NewLazyDLL("kernel32.dll")
 
-	procCreateProcessA     = modkernel32.NewProc("CreateProcessA")
-	procCreateProcessW     = modkernel32.NewProc("CreateProcessW")
-	ProcGetModuleHandleA   = modkernel32.NewProc("GetModuleHandleA")
-	ProcLoadLibraryA       = modkernel32.NewProc("LoadLibraryA")
-	ProcFreeLibrary        = modkernel32.NewProc("FreeLibrary")
-	ProcCreateRemoteThread = modkernel32.NewProc("CreateRemoteThread")
-	procOpenProcess        = modkernel32.NewProc("OpenProcess")
-	procVirtualAlloc       = modkernel32.NewProc("VirtualAlloc")
-	procVirtualAllocEx     = modkernel32.NewProc("VirtualAllocEx")
-	procVirtualFreeEx      = modkernel32.NewProc("VirtualFreeEx")
-	procReadProcessMemory  = modkernel32.NewProc("ReadProcessMemory")
-	procWriteProcessMemory = modkernel32.NewProc("WriteProcessMemory")
+	procCloseHandle              = modkernel32.NewProc("CloseHandle")
+	procCreateProcessA           = modkernel32.NewProc("CreateProcessA")
+	procCreateProcessW           = modkernel32.NewProc("CreateProcessW")
+	procGetModuleHandleA         = modkernel32.NewProc("GetModuleHandleA")
+	procLoadLibraryA             = modkernel32.NewProc("LoadLibraryA")
+	ProcFreeLibrary              = modkernel32.NewProc("FreeLibrary")
+	procCreateRemoteThread       = modkernel32.NewProc("CreateRemoteThread")
+	procCreateToolhelp32Snapshot = modkernel32.NewProc("CreateToolhelp32Snapshot")
+	procTerminateProcess         = modkernel32.NewProc("TerminateProcess")
+	procOpenProcess              = modkernel32.NewProc("OpenProcess")
+	procVirtualAlloc             = modkernel32.NewProc("VirtualAlloc")
+	procVirtualAllocEx           = modkernel32.NewProc("VirtualAllocEx")
+	procVirtualFreeEx            = modkernel32.NewProc("VirtualFreeEx")
+	procReadProcessMemory        = modkernel32.NewProc("ReadProcessMemory")
+	procWriteProcessMemory       = modkernel32.NewProc("WriteProcessMemory")
+	procProcess32First           = modkernel32.NewProc("Process32FirstW")
+	procProcess32Next            = modkernel32.NewProc("Process32NextW")
+	procModule32First            = modkernel32.NewProc("Module32FirstW")
+	procModule32Next             = modkernel32.NewProc("Module32NextW")
 )
 
 func OpenProcess(desiredAccess uint32, inheritHandle bool, processId uint32) (handle HANDLE, err error) {
@@ -113,7 +120,7 @@ func GetModuleHandleA(modulename string) uintptr {
 		bytes := []byte(modulename)
 		mn = uintptr(unsafe.Pointer(&bytes[0]))
 	}
-	ret, _, _ := ProcGetModuleHandleA.Call(mn)
+	ret, _, _ := procGetModuleHandleA.Call(mn)
 	return ret
 }
 

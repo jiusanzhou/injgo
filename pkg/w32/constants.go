@@ -7,6 +7,8 @@ const (
 	ERROR_SUCCESS = 0
 )
 
+const INVALID_HANDLE = ^HANDLE(0)
+
 // CreateToolhelp32Snapshot flags
 const (
 	TH32CS_SNAPHEAPLIST = 0x00000001

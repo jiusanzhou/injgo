@@ -3,9 +3,11 @@ package w32
 // +build windows
 
 type (
-	HANDLE uintptr
-	HKEY   HANDLE
-	BOOL   int32
+	HANDLE    uintptr
+	HKEY      HANDLE
+	BOOL      int32
+	HMODULE   HANDLE
+	ULONG_PTR uintptr
 )
 
 // http://msdn.microsoft.com/en-us/library/windows/desktop/ms684225.aspx
