@@ -9,6 +9,9 @@
 
 </div>
 
+|If you are a rustacean, try the Rust version: [injrs 🦀](https://github.com/jiusanzhou/injrs)|
+|:---|
+
 ### Features
 
 - **Pure `Go`**
