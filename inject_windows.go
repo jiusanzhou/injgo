@@ -3,6 +3,7 @@ package injgo
 import (
 	"errors"
 	"fmt"
+	"math"
 	"unsafe"
 
 	"go.zoe.im/injgo/pkg/w32"
@@ -74,7 +75,7 @@ func Inject(pid int, dllname string, replace bool) error {
 		return err
 	}
 	defer w32.CloseHandle(dllthread)
-	err = w32.WaitForSingleObj(dllthread, 1000*10)
+	err = w32.WaitForSingleObj(dllthread, math.MaxInt)
 	if err != nil {
 		return err
 	}
