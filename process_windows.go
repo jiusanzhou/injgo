@@ -2,6 +2,7 @@ package injgo
 
 import (
 	"errors"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -40,7 +41,7 @@ func FindProcessByName(name string) (*Process, error) {
 		}
 
 		_exeFile := w32.UTF16PtrToString(&entry.ExeFile[0])
-		if name == _exeFile {
+		if strings.ToLower(name) == strings.ToLower(_exeFile) {
 			process.Name = _exeFile
 			process.ProcessID = int(entry.ProcessID)
 			// TODO: 找到路径

@@ -2,6 +2,7 @@ package injgo
 
 import (
 	"errors"
+	"fmt"
 	"unsafe"
 
 	"go.zoe.im/injgo/pkg/w32"
@@ -15,18 +16,18 @@ var (
 
 // WARNING: only 386 arch works well.
 //
-// Inject is the function inject dynamic library to a process
+// # Inject is the function inject dynamic library to a process
 //
 // In windows, name is a file with dll extion.If the file
 // name exits, we will return error.
 // The workflow of injection in windows is:
-// 0. load kernel32.dll in current process.
-// 1. open target process T.
-// 2. malloc memory in T to store the name of the library.
-// 3. get address of function LoadLibraryA from kernel32.dll
-//    in T.
-// 4. call CreateRemoteThread method in kernel32.dll to execute
-//    LoadLibraryA in T.
+//  0. load kernel32.dll in current process.
+//  1. open target process T.
+//  2. malloc memory in T to store the name of the library.
+//  3. get address of function LoadLibraryA from kernel32.dll
+//     in T.
+//  4. call CreateRemoteThread method in kernel32.dll to execute
+//     LoadLibraryA in T.
 func Inject(pid int, dllname string, replace bool) error {
 
 	// check is already injected
@@ -35,45 +36,53 @@ func Inject(pid int, dllname string, replace bool) error {
 	}
 
 	// open process
-	hdlr, err := w32.OpenProcess(w32.PROCESS_ALL_ACCESS, false, uint32(pid))
+	hdlr, err := w32.OpenProcess(w32.PROCESS_ALL_ACCESS, true, ptr(pid))
 	if err != nil {
 		return err
 	}
 	defer w32.CloseHandle(hdlr)
 
 	// malloc space to write dll name
-	dlllen := len(dllname)
-	dllnameaddr, err := w32.VirtualAllocEx(hdlr, 0, dlllen, w32.MEM_COMMIT, w32.PAGE_EXECUTE_READWRITE)
+	dlllen := len(dllname) + 1
+	dllnameaddr, err := w32.VirtualAllocEx(hdlr, 0, ptr(dlllen), ptr(w32.MEM_RESERVE_AND_COMMIT), ptr(w32.PAGE_READWRITE))
 	if err != nil {
 		return err
 	}
 
 	// write dll name
-	err = w32.WriteProcessMemory(hdlr, uint32(dllnameaddr), []byte(dllname), uint(dlllen))
+	err = w32.WriteProcessMemory(hdlr, dllnameaddr, ptr(dllname), ptr(dlllen))
 	if err != nil {
 		return err
 	}
 
 	// test
-	tecase, _ := w32.ReadProcessMemory(hdlr, uint32(dllnameaddr), uint(dlllen))
-	if string(tecase) != dllname {
+	tecase, _ := w32.ReadProcessMemory(hdlr, dllnameaddr, ptr(dlllen))
+	if string(tecase[:len(tecase)-1]) != dllname {
 		return errors.New("write dll name error")
 	}
 
 	// get LoadLibraryA address in target process
 	// TODO: can we get the address at from this process?
-	lddladdr, err := w32.GetProcAddress(w32.GetModuleHandleA("kernel32.dll"), "LoadLibraryA")
+	lddladdr, err := w32.LoadLibraryAddress(ptr("LoadLibraryA"))
 	if err != nil {
 		return err
 	}
 
 	// call remote process
-	dllthread, _, err := w32.CreateRemoteThread(hdlr, nil, 0, uint32(lddladdr), dllnameaddr, 0)
+	dllthread, _, err := w32.CreateRemoteThread(hdlr, nil, ptr(0), ptr(lddladdr), dllnameaddr, ptr(0))
 	if err != nil {
 		return err
 	}
-
-	w32.CloseHandle(dllthread)
+	defer w32.CloseHandle(dllthread)
+	err = w32.WaitForSingleObj(dllthread, 1000*10)
+	if err != nil {
+		return err
+	}
+	free, err := w32.VirtualFreeEx(hdlr, dllnameaddr, ptr(0), w32.MEM_RELEASE)
+	if err != nil {
+		return err
+	}
+	fmt.Println("free", free)
 
 	return nil
 }
