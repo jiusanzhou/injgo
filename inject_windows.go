@@ -3,6 +3,7 @@ package injgo
 import (
 	"errors"
 	"math"
+	"os"
 	"path/filepath"
 	"unsafe"
 
@@ -31,7 +32,10 @@ var (
 //     LoadLibraryA in T.
 func Inject(pid int, dllname string, replace bool) error {
 	dllname, _ = filepath.Abs(dllname)
-
+	_, err := os.Stat(dllname)
+	if os.IsNotExist(err) {
+		return err
+	}
 	// check is already injected
 	if !replace && IsInjected(pid, dllname) {
 		return ErrAlreadyInjected
