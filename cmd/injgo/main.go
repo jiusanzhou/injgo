@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"go.zoe.im/injgo"
@@ -44,7 +43,6 @@ func main() {
 	fmt.Println("injector ", pid)
 	for _, name := range os.Args[2:] {
 		// check if file exits
-		name, _ = filepath.Abs(name)
 		err = injgo.Inject(pid, name, false)
 		if err != nil {
 			fmt.Println("inject ", name, "error:", err)
