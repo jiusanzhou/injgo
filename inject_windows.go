@@ -2,8 +2,8 @@ package injgo
 
 import (
 	"errors"
-	"fmt"
 	"math"
+	"path/filepath"
 	"unsafe"
 
 	"go.zoe.im/injgo/pkg/w32"
@@ -30,6 +30,7 @@ var (
 //  4. call CreateRemoteThread method in kernel32.dll to execute
 //     LoadLibraryA in T.
 func Inject(pid int, dllname string, replace bool) error {
+	dllname, _ = filepath.Abs(dllname)
 
 	// check is already injected
 	if !replace && IsInjected(pid, dllname) {
@@ -79,11 +80,10 @@ func Inject(pid int, dllname string, replace bool) error {
 	if err != nil {
 		return err
 	}
-	free, err := w32.VirtualFreeEx(hdlr, dllnameaddr, ptr(0), w32.MEM_RELEASE)
+	_, err = w32.VirtualFreeEx(hdlr, dllnameaddr, ptr(0), w32.MEM_RELEASE)
 	if err != nil {
 		return err
 	}
-	fmt.Println("free", free)
 
 	return nil
 }
