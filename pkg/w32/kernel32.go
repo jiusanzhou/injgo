@@ -1,6 +1,7 @@
-package w32
-
+//go:build windows
 // +build windows
+
+package w32
 
 import (
 	"encoding/binary"
@@ -30,9 +31,11 @@ var (
 	procProcess32Next            = modkernel32.NewProc("Process32NextW")
 	procModule32First            = modkernel32.NewProc("Module32FirstW")
 	procModule32Next             = modkernel32.NewProc("Module32NextW")
+	procGetProcAddress           = modkernel32.NewProc("GetProcAddress")
+	procWaitForSingleObj         = modkernel32.NewProc("WaitForSingleObject")
 )
 
-func OpenProcess(desiredAccess uint32, inheritHandle bool, processId uint32) (handle HANDLE, err error) {
+func OpenProcess(desiredAccess uint32, inheritHandle bool, processId uintptr) (handle HANDLE, err error) {
 	inherit := 0
 	if inheritHandle {
 		inherit = 1
@@ -41,7 +44,7 @@ func OpenProcess(desiredAccess uint32, inheritHandle bool, processId uint32) (ha
 	ret, _, err := procOpenProcess.Call(
 		uintptr(desiredAccess),
 		uintptr(inherit),
-		uintptr(processId))
+		processId)
 	if err != nil && IsErrSuccess(err) {
 		err = nil
 	}
@@ -155,13 +158,13 @@ func CreateProcessA(lpApplicationName *string,
 }
 
 // https://msdn.microsoft.com/en-us/library/windows/desktop/aa366890(v=vs.85).aspx
-func VirtualAllocEx(hProcess HANDLE, lpAddress int, dwSize int, flAllocationType int, flProtect int) (addr uintptr, err error) {
+func VirtualAllocEx(hProcess HANDLE, lpAddress uintptr, dwSize uintptr, flAllocationType uintptr, flProtect uintptr) (addr uintptr, err error) {
 	ret, _, err := procVirtualAllocEx.Call(
-		uintptr(hProcess),  // The handle to a process.
-		uintptr(lpAddress), // The pointer that specifies a desired starting address for the region of pages that you want to allocate.
-		uintptr(dwSize),    // The size of the region of memory to allocate, in bytes.
-		uintptr(flAllocationType),
-		uintptr(flProtect))
+		uintptr(hProcess), // The handle to a process.
+		lpAddress,         // The pointer that specifies a desired starting address for the region of pages that you want to allocate.
+		dwSize,            // The size of the region of memory to allocate, in bytes.
+		flAllocationType,
+		flProtect)
 	if int(ret) == 0 {
 		return ret, err
 	}
@@ -182,33 +185,43 @@ func VirtualAlloc(lpAddress int, dwSize int, flAllocationType int, flProtect int
 }
 
 // https://github.com/AllenDang/w32/pull/62/commits/08a52ff508c6b2b9b9bf5ee476109b903dcf219d
-func VirtualFreeEx(hProcess HANDLE, lpAddress, dwSize uintptr, dwFreeType uint32) bool {
-	ret, _, _ := procVirtualFreeEx.Call(
+func VirtualFreeEx(hProcess HANDLE, lpAddress, dwSize uintptr, dwFreeType uint32) (uintptr, error) {
+	ret, _, err := procVirtualFreeEx.Call(
 		uintptr(hProcess),
 		lpAddress,
 		dwSize,
 		uintptr(dwFreeType),
 	)
-
-	return ret != 0
+	if IsErrSuccess(err) {
+		return ret, nil
+	}
+	return ret, err
 }
 
 func GetProcAddress(h uintptr, name string) (uintptr, error) {
 	return syscall.GetProcAddress(syscall.Handle(h), name)
 }
 
+func LoadLibraryAddress(libraryPtr uintptr) (uintptr, error) {
+	loadLibraryAddress, _, err := procGetProcAddress.Call(modkernel32.Handle(), libraryPtr)
+	if !IsErrSuccess(err) {
+		return loadLibraryAddress, err
+	}
+	return loadLibraryAddress, nil
+}
+
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms682437(v=vs.85).aspx
 // Credit: https://github.com/contester/runlib/blob/master/win32/win32_windows.go#L577
 func CreateRemoteThread(hprocess HANDLE, sa *syscall.SecurityAttributes,
-	stackSize uint32, startAddress uint32, parameter uintptr, creationFlags uint32) (HANDLE, uint32, error) {
-	var threadId uint32
+	stackSize uintptr, startAddress uintptr, parameter uintptr, creationFlags uintptr) (HANDLE, int, error) {
+	var threadId int
 	r1, _, e1 := procCreateRemoteThread.Call(
 		uintptr(hprocess),
 		uintptr(unsafe.Pointer(sa)),
-		uintptr(stackSize),
-		uintptr(startAddress),
-		uintptr(parameter),
-		uintptr(creationFlags),
+		stackSize,
+		startAddress,
+		parameter,
+		creationFlags,
 		uintptr(unsafe.Pointer(&threadId)))
 
 	if int(r1) == 0 {
@@ -217,15 +230,24 @@ func CreateRemoteThread(hprocess HANDLE, sa *syscall.SecurityAttributes,
 	return HANDLE(r1), threadId, nil
 }
 
-//Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the operation fails.
-//https://msdn.microsoft.com/en-us/library/windows/desktop/ms681674(v=vs.85).aspx
-func WriteProcessMemory(hProcess HANDLE, lpBaseAddress uint32, data []byte, size uint) (err error) {
+// https://learn.microsoft.com/zh-cn/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
+func WaitForSingleObj(hprocess HANDLE, milliseconds int) error {
+	_, _, err := procWaitForSingleObj.Call(uintptr(hprocess), uintptr(milliseconds))
+	if IsErrSuccess(err) {
+		return nil
+	}
+	return err
+}
+
+// Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the operation fails.
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms681674(v=vs.85).aspx
+func WriteProcessMemory(hProcess HANDLE, lpBaseAddress uintptr, data uintptr, size uintptr) (err error) {
 	var numBytesRead uintptr
 
 	_, _, err = procWriteProcessMemory.Call(uintptr(hProcess),
-		uintptr(lpBaseAddress),
-		uintptr(unsafe.Pointer(&data[0])),
-		uintptr(size),
+		lpBaseAddress,
+		data,
+		size,
 		uintptr(unsafe.Pointer(&numBytesRead)))
 	if !IsErrSuccess(err) {
 		return
@@ -234,28 +256,27 @@ func WriteProcessMemory(hProcess HANDLE, lpBaseAddress uint32, data []byte, size
 	return
 }
 
-//Write process memory with a source of uint32
-func WriteProcessMemoryAsUint32(hProcess HANDLE, lpBaseAddress uint32, data uint32) (err error) {
-
+// Write process memory with a source of uint32
+func WriteProcessMemoryAsUint32(hProcess HANDLE, lpBaseAddress uintptr, data uint32) (err error) {
 	bData := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bData, data)
-	err = WriteProcessMemory(hProcess, lpBaseAddress, bData, 4)
+	err = WriteProcessMemory(hProcess, lpBaseAddress, uintptr(unsafe.Pointer(&bData[0])), 4)
 	if err != nil {
 		return
 	}
 	return
 }
 
-//Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the operation fails.
-//https://msdn.microsoft.com/en-us/library/windows/desktop/ms680553(v=vs.85).aspx
-func ReadProcessMemory(hProcess HANDLE, lpBaseAddress uint32, size uint) (data []byte, err error) {
+// Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the operation fails.
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms680553(v=vs.85).aspx
+func ReadProcessMemory(hProcess HANDLE, lpBaseAddress uintptr, size uintptr) (data []byte, err error) {
 	var numBytesRead uintptr
 	data = make([]byte, size)
 
 	_, _, err = procReadProcessMemory.Call(uintptr(hProcess),
-		uintptr(lpBaseAddress),
+		lpBaseAddress,
 		uintptr(unsafe.Pointer(&data[0])),
-		uintptr(size),
+		size,
 		uintptr(unsafe.Pointer(&numBytesRead)))
 	if !IsErrSuccess(err) {
 		return
@@ -265,7 +286,7 @@ func ReadProcessMemory(hProcess HANDLE, lpBaseAddress uint32, size uint) (data [
 }
 
 // Read process memory and convert the returned data to uint32
-func ReadProcessMemoryAsUint32(hProcess HANDLE, lpBaseAddress uint32) (buffer uint32, err error) {
+func ReadProcessMemoryAsUint32(hProcess HANDLE, lpBaseAddress uintptr) (buffer uint32, err error) {
 	data, err := ReadProcessMemory(hProcess, lpBaseAddress, 4)
 	if err != nil {
 		return

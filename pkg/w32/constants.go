@@ -1,6 +1,7 @@
-package w32
-
+//go:build windows
 // +build windows
+
+package w32
 
 const (
 	NO_ERROR      = 0
@@ -31,6 +32,8 @@ const (
 	MEM_RESET      = 0x00080000
 	MEM_RESET_UNDO = 0x1000000
 
+	MEM_RESERVE_AND_COMMIT = MEM_COMMIT | MEM_RESERVE
+
 	MEM_LARGE_PAGES = 0x20000000
 	MEM_PHYSICAL    = 0x00400000
 	MEM_TOP_DOWN    = 0x00100000
@@ -52,8 +55,8 @@ const (
 	PAGE_TARGETS_NO_UPDATE = 0x40000000
 )
 
-//Process Access Rights
-//https://msdn.microsoft.com/en-us/library/windows/desktop/ms684880(v=vs.85).aspx
+// Process Access Rights
+// https://msdn.microsoft.com/en-us/library/windows/desktop/ms684880(v=vs.85).aspx
 const (
 	PROCESS_CREATE_PROCESS            = 0x0080  //Required to create a process.
 	PROCESS_CREATE_THREAD             = 0x0002  //Required to create a thread.
@@ -69,4 +72,11 @@ const (
 	PROCESS_VM_WRITE                  = 0x0020  //Required to write to memory in a process using WriteProcessMemory.
 	PROCESS_ALL_ACCESS                = 2035711 //This is not recommended.
 	SYNCHRONIZE                       = 0x00100000
+)
+
+const (
+	infinite      = 0xFFFFFFFF
+	waitObject0   = 0x00000000
+	waitAbandoned = 0x00000080
+	waitFailed    = 0xFFFFFFFF
 )
